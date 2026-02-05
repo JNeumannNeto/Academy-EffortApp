@@ -25,12 +25,14 @@ export default function HomePage() {
     try {
       setLoading(true);
 
-      // Buscar ficha ativa do aluno
-      const fichaRes = await api.get('/api/fichas');
-      if (fichaRes.data.sucesso) {
-        const fichas: Ficha[] = fichaRes.data.fichas;
-        const fichaAtiva = fichas.find(f => f.ativa && !f.vencida);
-        setFicha(fichaAtiva || null);
+      // Buscar ficha ativa do aluno (usando rota específica para alunos)
+      if (usuario?.id) {
+        const fichaRes = await api.get(`/api/fichas/aluno/${usuario.id}/ativa`);
+        if (fichaRes.data.sucesso && fichaRes.data.dados) {
+          setFicha(fichaRes.data.dados);
+        } else {
+          setFicha(null);
+        }
       }
 
       // Buscar últimas execuções (últimas 3)

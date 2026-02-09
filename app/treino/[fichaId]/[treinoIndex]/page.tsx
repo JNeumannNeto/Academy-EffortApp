@@ -67,24 +67,30 @@ carregarFicha();
       setLoading(true);
       const { data } = await api.get(`/api/fichas/${fichaId}`);
       
-      if (data.sucesso) {
-        setFicha(data.ficha);
+      if (data.sucesso && data.dados) {
+        setFicha(data.dados);
      
-      // Extrair todos os exercícios do treino selecionado
-        const treino = data.ficha.treinos[treinoIndex];
-      const todosExercicios: ExercicioComInfo[] = [];
+        // Extrair todos os exercícios do treino selecionado
+        const treino = data.dados.treinos[treinoIndex];
+        
+        if (!treino) {
+          console.error('Treino não encontrado no índice:', treinoIndex);
+          return;
+        }
+        
+        const todosExercicios: ExercicioComInfo[] = [];
 
-        treino.partes.forEach((parte: { nome?: string; exercicios: Exercicio[] }, pIndex: number) => {
-  parte.exercicios.forEach((ex: Exercicio, eIndex: number) => {
+        treino.partes?.forEach((parte: { nome?: string; exercicios: Exercicio[] }, pIndex: number) => {
+          parte.exercicios?.forEach((ex: Exercicio, eIndex: number) => {
             todosExercicios.push({
               ...ex,
-    parteIndex: pIndex,
-   exercicioIndex: eIndex,
-       parteNome: parte.nome,
- concluido: false
-      });
+              parteIndex: pIndex,
+              exercicioIndex: eIndex,
+              parteNome: parte.nome,
+              concluido: false
+            });
           });
-   });
+        });
 
         setExercicios(todosExercicios);
       }
@@ -310,26 +316,41 @@ Voltar para home
 
            {/* Nome do Exercício */}
      <h2 className="text-2xl font-bold text-center mb-2">
-    {exercicio.objetivo}
-               </h2>
-<p className="text-center text-gray-400 mb-6">
-           {exercicio.equipamento}
-          </p>
+                    {typeof exercicio.objetivo === 'object' && exercicio.objetivo?.nome 
+                      ? exercicio.objetivo.nome 
+                      : exercicio.objetivo}
+                  </h2>
+                  <p className="text-center text-gray-400 mb-6">
+                    {typeof exercicio.equipamento === 'object' && exercicio.equipamento?.nome
+                      ? exercicio.equipamento.nome
+                      : exercicio.equipamento}
+                  </p>
 
-           {/* Séries e Repetições */}
-           <div className="space-y-3 mb-6">
-           {exercicio.series.map((serie, idx) => (
-           <div
-       key={idx}
-         className="flex items-center justify-between bg-gray-700 rounded-lg p-4"
-            >
-    <span className="text-gray-300">Série {idx + 1}</span>
-      <span className="text-xl font-bold">
-              {serie} x {exercicio.repeticoes[idx]}
-      </span>
-        </div>
-     ))}
-        </div>
+                  {/* Séries/Repetições ou Tempo */}
+                  {exercicio.tipo === 'tempo' ? (
+                    // Exercício por Tempo
+                    <div className="bg-gray-700 rounded-lg p-6 mb-6 text-center">
+                      <p className="text-gray-400 text-sm mb-2">Duração</p>
+                      <p className="text-4xl font-bold text-blue-400">
+                        {formatarTempo(exercicio.tempoSegundos || 0)}
+                      </p>
+                    </div>
+                  ) : (
+                    // Exercício por Séries
+                    <div className="space-y-3 mb-6">
+                      {exercicio.series.map((serie, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between bg-gray-700 rounded-lg p-4"
+                        >
+                          <span className="text-gray-300">Série {idx + 1}</span>
+                          <span className="text-xl font-bold">
+                            {serie} x {exercicio.repeticoes[idx]}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
          {/* Detalhes */}
             {exercicio.detalhes && (

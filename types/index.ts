@@ -11,8 +11,10 @@ export interface Usuario {
 export interface Exercicio {
   objetivo: string;
   equipamento: string;
+  tipo?: 'series' | 'tempo';
   series: number[];
   repeticoes: number[];
+  tempoSegundos?: number;
   detalhes?: string;
   ordem: number;
   concluido?: boolean;

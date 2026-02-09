@@ -27,24 +27,37 @@ export default function HomePage() {
 
       // Buscar ficha ativa do aluno (usando rota específica para alunos)
       if (usuario?.id) {
-        const fichaRes = await api.get(`/api/fichas/aluno/${usuario.id}/ativa`);
-        if (fichaRes.data.sucesso && fichaRes.data.dados) {
-          setFicha(fichaRes.data.dados);
-        } else {
+        try {
+          const fichaRes = await api.get(`/api/fichas/aluno/${usuario.id}/ativa`);
+          console.log('Resposta da API ficha:', fichaRes.data);
+          
+          if (fichaRes.data.sucesso && fichaRes.data.dados) {
+            console.log('Ficha carregada:', fichaRes.data.dados);
+            setFicha(fichaRes.data.dados);
+          } else {
+            console.log('Nenhuma ficha encontrada');
+            setFicha(null);
+          }
+        } catch (err) {
+          console.error('Erro ao carregar ficha:', err);
           setFicha(null);
         }
+      } else {
+        console.log('Usuário não identificado');
+        setFicha(null);
       }
 
       // Buscar últimas execuções (últimas 3)
-      try {
-        const execucoesRes = await api.get('/api/execucoes');
-        if (execucoesRes.data.sucesso) {
-          const execucoes: ExecucaoTreino[] = execucoesRes.data.execucoes;
-          setUltimasExecucoes(execucoes.slice(0, 3));
+      if (usuario?.id) {
+        try {
+          const execucoesRes = await api.get(`/api/execucoes/aluno/${usuario.id}/ultimas`);
+          if (execucoesRes.data.sucesso) {
+            const execucoes: ExecucaoTreino[] = execucoesRes.data.dados || [];
+            setUltimasExecucoes(execucoes.slice(0, 3));
+          }
+        } catch (err) {
+          console.log('Erro ao carregar execuções:', err);
         }
-      } catch (err) {
-        // Se não existir endpoint de execuções, apenas ignore
-        console.log('Endpoint de execuções não disponível');
       }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -163,7 +176,7 @@ export default function HomePage() {
         )}
 
         {/* Treinos Disponíveis */}
-        {ficha && ficha.treinos.length > 0 ? (
+        {ficha && Array.isArray(ficha.treinos) && ficha.treinos.length > 0 ? (
           <div>
             <h2 className="text-lg font-bold text-gray-900 mb-3">Escolha seu Treino</h2>
             <div className="grid grid-cols-1 gap-3">
@@ -176,18 +189,18 @@ export default function HomePage() {
                   <div className="flex items-center gap-4">
                     <div
                       className="w-16 h-16 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-md"
-                      style={{ backgroundColor: treino.cor }}
+                      style={{ backgroundColor: treino.cor || '#3B82F6' }}
                     >
                       {String.fromCharCode(65 + index)}
                     </div>
                     <div className="flex-1">
                       <h3 className="font-bold text-gray-900 text-lg">
-                        Treino {String.fromCharCode(65 + index)}
+                        {treino.nome || `Treino ${String.fromCharCode(65 + index)}`}
                       </h3>
                       <div className="flex items-center gap-2 text-sm text-gray-600 mt-1">
                         <Dumbbell size={14} />
                         <span>
-                          {treino.partes.reduce((acc, parte) => acc + parte.exercicios.length, 0)} exercícios
+                          {treino.partes?.reduce((acc, parte) => acc + (parte.exercicios?.length || 0), 0) || 0} exercícios
                         </span>
                       </div>
                       {treino.observacoes && (

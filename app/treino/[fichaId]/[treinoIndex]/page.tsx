@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, Check, Play, Pause, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '@/lib/api';
 import { Ficha, Exercicio } from '@/types';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -31,36 +31,13 @@ export default function TreinoPage() {
   const [exercicios, setExercicios] = useState<ExercicioComInfo[]>([]);
   const [exercicioAtual, setExercicioAtual] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [iniciado, setIniciado] = useState(false);
-const [tempo, setTempo] = useState(0);
-  const [pausado, setPausado] = useState(false);
+  const [anotacoes, setAnotacoes] = useState<{ [key: number]: string }>({});
+  const [salvando, setSalvando] = useState(false);
   const swiperRef = useRef<SwiperType | null>(null);
-  const intervaloRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-carregarFicha();
-    return () => {
-      if (intervaloRef.current) {
-        clearInterval(intervaloRef.current);
-      }
-    };
+    carregarFicha();
   }, [fichaId]);
-
-  useEffect(() => {
-    if (iniciado && !pausado) {
-      intervaloRef.current = setInterval(() => {
-        setTempo(prev => prev + 1);
-      }, 1000);
-    } else if (intervaloRef.current) {
-      clearInterval(intervaloRef.current);
-    }
-
-    return () => {
-      if (intervaloRef.current) {
-        clearInterval(intervaloRef.current);
-      }
-    };
-  }, [iniciado, pausado]);
 
   const carregarFicha = async () => {
     try {
@@ -110,14 +87,34 @@ carregarFicha();
     setPausado(!pausado);
   };
 
-  const handleConcluirExercicio = () => {
-    const novosExercicios = [...exercicios];
-    novosExercicios[exercicioAtual].concluido = true;
-    setExercicios(novosExercicios);
+  const handleConcluirExercicio = async () => {
+    const exercicio = exercicios[exercicioAtual];
+    const anotacao = anotacoes[exercicioAtual] || '';
 
-    // Ir para o próximo exercício
-    if (exercicioAtual < exercicios.length - 1) {
-      swiperRef.current?.slideNext();
+    try {
+      setSalvando(true);
+      // Salvar execução no backend
+      await api.post('/api/execucoes/exercicio', {
+        fichaId,
+        treinoIndex,
+        parteIndex: exercicio.parteIndex,
+        exercicioIndex: exercicio.exercicioIndex,
+        anotacoes: anotacao
+      });
+
+      const novosExercicios = [...exercicios];
+      novosExercicios[exercicioAtual].concluido = true;
+      setExercicios(novosExercicios);
+
+      // Ir para o próximo exercício
+      if (exercicioAtual < exercicios.length - 1) {
+        swiperRef.current?.slideNext();
+      }
+    } catch (error) {
+      console.error('Erro ao salvar execução:', error);
+      alert('Erro ao salvar. Tente novamente.');
+    } finally {
+      setSalvando(false);
     }
   };
 
@@ -197,82 +194,32 @@ Voltar para home
   }
 
   const treino = ficha.treinos[treinoIndex];
-  const progresso = exercicios.filter(e => e.concluido).length;
-  const percentual = exercicios.length > 0 ? (progresso / exercicios.length) * 100 : 0;
 
   return (
-  <div className="min-h-screen bg-gray-900 text-white flex flex-col">
+    <div className="min-h-screen bg-gray-900 text-white flex flex-col">
       {/* Header Fixo */}
       <div className="bg-gray-800 p-4 shadow-lg">
-   <div className="flex items-center justify-between mb-3">
-     <button
-     onClick={() => router.back()}
-   className="p-2 hover:bg-gray-700 rounded-lg transition"
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => router.back()}
+            className="p-2 hover:bg-gray-700 rounded-lg transition"
           >
-          <ArrowLeft size={24} />
-      </button>
+            <ArrowLeft size={24} />
+          </button>
 
           <div className="text-center flex-1">
-         <div
-           className="inline-block w-10 h-10 rounded-full text-lg font-bold flex items-center justify-center mb-1"
-   style={{ backgroundColor: treino.cor }}
-            >
-           {String.fromCharCode(65 + treinoIndex)}
-            </div>
-       <p className="text-sm text-gray-400">
-     Treino {String.fromCharCode(65 + treinoIndex)}
-      </p>
-          </div>
-
-       <div className="w-10" />
-        </div>
-
-        {/* Barra de Progresso */}
-        <div className="mb-3">
-          <div className="flex justify-between text-xs text-gray-400 mb-1">
-     <span>{progresso} de {exercicios.length}</span>
-       <span>{Math.round(percentual)}%</span>
-          </div>
-       <div className="w-full bg-gray-700 rounded-full h-2">
             <div
-       className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-     style={{ width: `${percentual}%` }}
-            />
-      </div>
-        </div>
+              className="inline-block w-10 h-10 rounded-full text-lg font-bold flex items-center justify-center mb-1"
+              style={{ backgroundColor: treino.cor }}
+            >
+              {String.fromCharCode(65 + treinoIndex)}
+            </div>
+            <p className="text-sm text-gray-400">
+              Treino {String.fromCharCode(65 + treinoIndex)}
+            </p>
+          </div>
 
-  {/* Timer e Controles */}
- <div className="flex items-center justify-between">
-          <div className="text-2xl font-bold font-mono">
-            {formatarTempo(tempo)}
-     </div>
-
-      <div className="flex gap-2">
-      {!iniciado ? (
-          <button
-          onClick={handleIniciar}
-     className="flex items-center gap-2 px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition"
-    >
-          <Play size={20} />
-    <span>Iniciar</span>
-          </button>
-            ) : (
-          <>
- <button
-   onClick={handlePausar}
-          className="p-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition"
-                >
-{pausado ? <Play size={20} /> : <Pause size={20} />}
-</button>
-      <button
-              onClick={() => setTempo(0)}
-     className="p-2 bg-gray-700 rounded-lg hover:bg-gray-600 transition"
- >
-       <RotateCcw size={20} />
-        </button>
-       </>
-            )}
-    </div>
+          <div className="w-10" />
         </div>
       </div>
 
@@ -359,18 +306,37 @@ Voltar para home
              </div>
          )}
 
+                  {/* Campo de Anotações */}
+                  <div className="mb-4">
+                    <label className="block text-sm text-gray-300 mb-2">
+                      Anotações (carga, distância, observações...)
+                    </label>
+                    <textarea
+                      value={anotacoes[index] || ''}
+                      onChange={(e) => setAnotacoes({ ...anotacoes, [index]: e.target.value })}
+                      disabled={exercicio.concluido}
+                      className="w-full px-4 py-3 bg-gray-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-gray-800 disabled:text-gray-500"
+                      rows={3}
+                      placeholder="Ex: 20kg, 2km percorridos, etc..."
+                    />
+                  </div>
+
        {/* Botão Concluir */}
          <button
   onClick={handleConcluirExercicio}
-          disabled={exercicio.concluido}
+          disabled={exercicio.concluido || salvando}
       className={`w-full py-4 rounded-xl font-bold transition flex items-center justify-center gap-2 ${
     exercicio.concluido
        ? 'bg-green-600 cursor-not-allowed'
-        : 'bg-blue-600 hover:bg-blue-700'
+        : salvando
+          ? 'bg-gray-600 cursor-wait'
+          : 'bg-blue-600 hover:bg-blue-700'
              }`}
 >
    <Check size={24} />
-      <span>{exercicio.concluido ? 'Exercício Concluído' : 'Concluir Exercício'}</span>
+      <span>
+        {exercicio.concluido ? 'Exercício Concluído' : salvando ? 'Salvando...' : 'Concluir Exercício'}
+      </span>
        </button>
       </div>
   </div>

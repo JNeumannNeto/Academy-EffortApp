@@ -10,7 +10,14 @@ export interface Usuario {
 
 export interface Exercicio {
   objetivo: string;
-  equipamento: string;
+  equipamento: string | {
+    _id: string;
+    nome: string;
+    midia?: {
+      tipo: 'imagem' | 'video' | 'nenhum';
+      url: string;
+    };
+  };
   tipo?: 'series' | 'tempo';
   series: number[];
   repeticoes: number[];

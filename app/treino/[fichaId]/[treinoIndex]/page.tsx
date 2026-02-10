@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import api from '@/lib/api';
 import { Ficha, Exercicio } from '@/types';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -33,6 +33,11 @@ export default function TreinoPage() {
   const [loading, setLoading] = useState(true);
   const [anotacoes, setAnotacoes] = useState<{ [key: number]: string }>({});
   const [salvando, setSalvando] = useState(false);
+  const [midiaAberta, setMidiaAberta] = useState<{
+    tipo: 'imagem' | 'video';
+    url: string;
+    nome: string;
+  } | null>(null);
   const swiperRef = useRef<SwiperType | null>(null);
 
   useEffect(() => {
@@ -70,6 +75,9 @@ export default function TreinoPage() {
         });
 
         setExercicios(todosExercicios);
+
+        // Carregar últimas anotações de cada exercício
+        await carregarAnotacoesAnteriores(todosExercicios);
       }
     } catch (error) {
       console.error('Erro ao carregar ficha:', error);
@@ -78,13 +86,38 @@ export default function TreinoPage() {
     }
   };
 
-  const handleIniciar = () => {
-    setIniciado(true);
-    setPausado(false);
-  };
+  const carregarAnotacoesAnteriores = async (exercicios: ExercicioComInfo[]) => {
+    try {
+      const anotacoesCarregadas: { [key: number]: string } = {};
 
-  const handlePausar = () => {
-    setPausado(!pausado);
+      // Buscar anotações para cada exercício
+      for (let i = 0; i < exercicios.length; i++) {
+        const ex = exercicios[i];
+        try {
+          const { data } = await api.get('/api/execucoes/exercicio/ultimas', {
+            params: {
+              fichaId,
+              treinoIndex,
+              exercicioIndex: ex.exercicioIndex
+            }
+          });
+
+          // Se houver execuções anteriores, pegar a anotação mais recente
+          if (data.sucesso && data.dados && data.dados.length > 0) {
+            const ultimaExecucao = data.dados[0];
+            if (ultimaExecucao.anotacoes) {
+              anotacoesCarregadas[i] = ultimaExecucao.anotacoes;
+            }
+          }
+        } catch (error) {
+          console.error(`Erro ao carregar anotações do exercício ${i}:`, error);
+        }
+      }
+
+      setAnotacoes(anotacoesCarregadas);
+    } catch (error) {
+      console.error('Erro ao carregar anotações anteriores:', error);
+    }
   };
 
   const handleConcluirExercicio = async () => {
@@ -267,11 +300,27 @@ Voltar para home
                       ? exercicio.objetivo.nome 
                       : exercicio.objetivo}
                   </h2>
-                  <p className="text-center text-gray-400 mb-6">
-                    {typeof exercicio.equipamento === 'object' && exercicio.equipamento?.nome
-                      ? exercicio.equipamento.nome
-                      : exercicio.equipamento}
-                  </p>
+                  <div className="text-center mb-6">
+                    <p className="text-gray-400 inline-block">
+                      {typeof exercicio.equipamento === 'object' && exercicio.equipamento?.nome
+                        ? exercicio.equipamento.nome
+                        : exercicio.equipamento}
+                    </p>
+                    {typeof exercicio.equipamento === 'object' && 
+                     exercicio.equipamento?.midia && 
+                     exercicio.equipamento.midia.tipo !== 'nenhum' && (
+                      <button
+                        onClick={() => setMidiaAberta({
+                          tipo: exercicio.equipamento.midia!.tipo,
+                          url: exercicio.equipamento.midia!.url,
+                          nome: exercicio.equipamento.nome
+                        })}
+                        className="ml-2 px-3 py-1 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700 transition"
+                      >
+                        {exercicio.equipamento.midia.tipo === 'imagem' ? '📷 Ver Imagem' : '🎥 Ver Vídeo'}
+                      </button>
+                    )}
+                  </div>
 
                   {/* Séries/Repetições ou Tempo */}
                   {exercicio.tipo === 'tempo' ? (
@@ -363,6 +412,47 @@ Voltar para home
       Finalizar Treino
   </button>
       </div>
+
+      {/* Modal de Mídia */}
+      {midiaAberta && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4">
+          <div className="relative w-full max-w-4xl bg-gray-900 rounded-xl overflow-hidden">
+            {/* Cabeçalho */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-800">
+              <h3 className="text-lg font-semibold">{midiaAberta.nome}</h3>
+              <button
+                onClick={() => setMidiaAberta(null)}
+                className="p-2 hover:bg-gray-800 rounded-lg transition"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Conteúdo */}
+            <div className="p-4">
+              {midiaAberta.tipo === 'imagem' ? (
+                <img
+                  src={midiaAberta.url}
+                  alt={midiaAberta.nome}
+                  className="w-full h-auto rounded-lg"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23374151" width="400" height="300"/%3E%3Ctext fill="%239CA3AF" font-family="Arial" font-size="20" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EImagem não disponível%3C/text%3E%3C/svg%3E';
+                  }}
+                />
+              ) : (
+                <div className="aspect-video">
+                  <iframe
+                    src={midiaAberta.url}
+                    className="w-full h-full rounded-lg"
+                    allowFullScreen
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
